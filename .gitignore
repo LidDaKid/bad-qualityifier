@@ -3,3 +3,4 @@ desktop.ini
 .DS_Store
 _deploy/
 .netlify/
+.old/
