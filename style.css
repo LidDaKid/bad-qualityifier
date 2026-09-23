@@ -201,6 +201,35 @@ aside {
 }
 
 #tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-bottom: 14px; }
+#lookform { display: flex; gap: 8px; padding-bottom: 14px; }
+#lookform[hidden] { display: none; }
+#lookform input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  text-transform: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 2px solid var(--lime);
+  padding: 6px 8px;
+}
+#lookform input:focus { outline: none; border-color: var(--pink); }
+.filt.mine span { color: var(--lime); }
+.filt .x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  line-height: 18px;
+  text-align: center;
+  background: var(--ink);
+  border: 2px solid var(--pink);
+  color: var(--pink);
+  font-style: normal;
+  font-size: 11px;
+}
+.filt { position: relative; }
 
 .sec { border-top: 2px solid var(--line); }
 .sec-h { display: flex; align-items: center; gap: 8px; }

@@ -54,7 +54,14 @@
     <div id="tools">
       <button id="random" type="button" class="alt">random</button>
       <button id="reset" type="button" class="alt">reset</button>
+      <button id="savelook" type="button">save look</button>
+      <button id="copylink" type="button">copy link</button>
     </div>
+    <form id="lookform" hidden>
+      <input id="lookname" type="text" maxlength="24" placeholder="name" autocomplete="off">
+      <button type="submit" class="primary">ok</button>
+      <button type="button" id="lookcancel">cancel</button>
+    </form>
     <div id="sections"></div>
   </aside>
 </main>

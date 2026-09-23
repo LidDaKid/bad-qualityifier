@@ -298,20 +298,105 @@ function buildControls() {
   paintAll();
 }
 
+// her own saved looks live in localStorage, and sit right after "original" in the strip
+let LOOKS = [];
+try { LOOKS = JSON.parse(localStorage.getItem('bq-looks') || '[]'); } catch { LOOKS = []; }
+const saveLooks = () => { try { localStorage.setItem('bq-looks', JSON.stringify(LOOKS)); } catch { say("couldn't save that here"); } };
+const allPresets = () => [PRESETS[0], ...LOOKS, ...PRESETS.slice(1)];
+const presetVals = name => allPresets().find(p => p[0] === name)[1];
+
+function filterButton(name, mine) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'filt' + (mine ? ' mine' : ''); b.dataset.name = name;
+  const c = document.createElement('canvas'); c.width = c.height = 1;
+  const l = document.createElement('span'); l.textContent = name;
+  b.append(c, l);
+  thumbs[name] = c;
+  b.addEventListener('click', () => { setVals(presetVals(name)); markPreset(name); });
+  if (mine) {
+    const x = document.createElement('i'); x.className = 'x'; x.textContent = 'x';
+    x.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!confirm(`delete "${name}"?`)) return;
+      LOOKS = LOOKS.filter(p => p[0] !== name);
+      saveLooks();
+      b.remove(); delete thumbs[name];
+    });
+    b.append(x);
+  }
+  return b;
+}
 function buildFilters() {
   const strip = $('#filters');
-  for (const [name] of PRESETS) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'filt'; b.dataset.name = name;
-    const c = document.createElement('canvas'); c.width = c.height = 1;
-    const l = document.createElement('span'); l.textContent = name;
-    b.append(c, l); strip.append(b);
-    thumbs[name] = c;
-    b.addEventListener('click', () => { setVals(presetVals(name)); markPreset(name); });
-  }
+  strip.replaceChildren(...allPresets().map(([name]) => filterButton(name, LOOKS.some(p => p[0] === name))));
 }
-const presetVals = name => PRESETS.find(p => p[0] === name)[1];
 function markPreset(name) {
   for (const b of $('#filters').children) b.classList.toggle('on', b.dataset.name === name);
+}
+
+// look <-> short text, only the sliders that moved: "sat=230,con=55,duoc=1a0b2e.ff3d9a"
+function encodeLook(v) {
+  const parts = [];
+  for (const k in DEF) {
+    if (same(v[k], DEF[k])) continue;
+    const x = v[k];
+    parts.push(k + '=' + (Array.isArray(x) ? x.map(c => c.slice(1)).join('.') : typeof x === 'string' ? x.slice(1) : x));
+  }
+  return parts.join(',');
+}
+function decodeLook(s) {
+  const v = {}, HEX = /^[0-9a-f]{6}$/i;
+  for (const part of s.split(',')) {
+    const [k, raw = ''] = part.split('=');
+    if (!(k in DEF)) continue;
+    const d = DEF[k], r = rows[k];
+    if (Array.isArray(d)) { const cs = raw.split('.'); if (cs.length === d.length && cs.every(c => HEX.test(c))) v[k] = cs.map(c => '#' + c.toLowerCase()); }
+    else if (typeof d === 'string') { if (HEX.test(raw)) v[k] = '#' + raw.toLowerCase(); }
+    else if (r.kind === 'toggle') v[k] = raw === '1' ? 1 : 0;
+    else { const n = Math.round(+raw); if (!Number.isNaN(n)) v[k] = Math.max(r.spec.min, Math.min(r.spec.max, n)); }
+  }
+  return v;
+}
+
+const lookForm = $('#lookform'), lookName = $('#lookname');
+let suggestedName = '';
+$('#savelook').addEventListener('click', () => {
+  if (!encodeLook(vals)) { say('move something first'); return; }
+  lookForm.hidden = false;
+  lookName.value = suggestedName || '';
+  lookName.focus(); lookName.select();
+});
+$('#lookcancel').addEventListener('click', () => { lookForm.hidden = true; });
+lookForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = lookName.value.trim().toLowerCase();
+  if (!name) return;
+  if (PRESETS.some(p => p[0] === name)) { say('that name is taken'); return; }
+  const over = decodeLook(encodeLook(vals));
+  const old = LOOKS.find(p => p[0] === name);
+  if (old) old[1] = over; else LOOKS.unshift([name, over]);
+  saveLooks();
+  lookForm.hidden = true;
+  if (!old) {
+    const b = filterButton(name, true);
+    $('#filters').children[0].after(b);
+  }
+  markPreset(name);
+  if (pristine) await renderThumb(name, over);
+});
+
+$('#copylink').addEventListener('click', async () => {
+  const on = document.querySelector('.filt.on'), name = on && on.classList.contains('mine') ? on.dataset.name : '';
+  const url = location.href.split('#')[0] + '#look=' + encodeURIComponent(name) + '|' + encodeLook(vals);
+  try { await navigator.clipboard.writeText(url); flash($('#copylink'), 'copied'); }
+  catch { say("couldn't copy"); }
+});
+function applyHash() {
+  const m = location.hash.match(/^#look=([^|]*)\|(.*)$/);
+  if (!m) return;
+  suggestedName = decodeURIComponent(m[1]);
+  setVals(decodeLook(m[2]));
+  markPreset(null);
+  try { history.replaceState(null, '', location.pathname + location.search); } catch { /* file:// can be picky */ }
 }
 
 function randomVals() {
@@ -415,18 +500,26 @@ const whenIdle = () => new Promise(res => {
   tick();
 });
 
-let thumbToken = 0, thumbBusy = false;
+let thumbToken = 0, thumbBusy = false, tiny = null, thumbChain = Promise.resolve();
+// thumbnails share one pipeline, so they queue up one after another
+function renderThumb(name, over) {
+  thumbChain = thumbChain.then(async () => {
+    if (!tiny || !thumbs[name]) return;
+    const fin = await P2.run(tiny, merged(over), { alpha: hasAlpha, thumb: true });
+    const c = thumbs[name];
+    if (!c) return;
+    c.width = fin.width; c.height = fin.height;
+    c.getContext('2d').drawImage(fin, 0, 0);
+  }).catch(e => console.error(e));
+  return thumbChain;
+}
 async function refreshThumbs() {
   const my = ++thumbToken;
   thumbBusy = true;
-  const tiny = makeSource(THUMB);
-  for (const [name, over] of PRESETS) {
+  tiny = makeSource(THUMB);
+  for (const [name, over] of allPresets()) {
     if (my !== thumbToken) return;
-    const fin = await P2.run(tiny, merged(over), { alpha: hasAlpha, thumb: true });
-    if (my !== thumbToken) return;
-    const c = thumbs[name];
-    c.width = fin.width; c.height = fin.height;
-    c.getContext('2d').drawImage(fin, 0, 0);
+    await renderThumb(name, over);
     await new Promise(r => setTimeout(r, 0));
   }
   if (my === thumbToken) thumbBusy = false;
@@ -722,8 +815,10 @@ resetBtn.addEventListener('dblclick', () => {
 buildControls();
 buildFilters();
 markPreset('original');
+applyHash();
+addEventListener('hashchange', applyHash);
 if (document.fonts && document.fonts.load) document.fonts.load('12px Silkscreen');
 
 // for the test script
-window.__bq = { whenIdle, vals, xf, load, get out() { return out; }, get orig() { return orig; }, get alpha() { return outAlpha; } };
+window.__bq = { whenIdle, vals, xf, load, encodeLook, get looks() { return LOOKS; }, get out() { return out; }, get orig() { return orig; }, get alpha() { return outAlpha; } };
 })();
