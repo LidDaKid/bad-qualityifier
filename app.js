@@ -143,6 +143,21 @@ const PRESETS = [
   ['1977', { con: 10, bri: 12, sat: 30, wash: 35, washhue: 320, fade: 10 }],
   ['kelvin', { warm: 50, sat: 30, con: 15, bri: 10, wash: 35, washhue: 30, glow: 10 }],
   ['maven', { sepia: 25, bri: -5, con: -5, sat: 50, warm: -5, wash: 10, washhue: 270 }],
+  // instagram's city ones
+  ['rio de janeiro', { warm: 30, sat: 35, con: 10, bri: 8, highlights: 10, wash: 10, washhue: 30 }],
+  ['tokyo', { sat: -100, con: 20, bri: 5, wash: 12, washhue: 210 }],
+  ['oslo', { sat: -20, con: 20, warm: -25, shadows: -10, wash: 10, washhue: 215 }],
+  ['melbourne', { fade: 20, warm: 20, con: -8, sat: -10, bri: 6 }],
+  ['jakarta', { con: 25, sat: 20, warm: -15, shadows: -20, vig: 25 }],
+  ['abu dhabi', { warm: 30, fade: 25, con: -10, sat: -5, bri: 8 }],
+  ['buenos aires', { warm: 20, sat: 30, con: 15, tint: 15, wash: 12, washhue: 340 }],
+  ['new york', { con: 30, sat: -30, warm: -15, black: 15, vig: 20 }],
+  ['jaipur', { bri: 12, sat: 35, warm: 15, wash: 15, washhue: 320, con: 8 }],
+  ['cairo', { sepia: 25, warm: 25, fade: 20, con: -5, sat: -5 }],
+  ['lagos', { sat: 40, con: 20, warm: 25, glow: 8 }],
+  ['los angeles', { bri: 15, fade: 25, con: -15, sat: 10, warm: 10, wash: 12, washhue: 300 }],
+  ['paris', { fade: 30, sat: -10, wash: 25, washhue: 330, con: -10, bri: 8 }],
+  ['sydney', { bri: 8, con: 12, sat: 20, warm: -20, wash: 10, washhue: 200 }],
   ['fade', { fade: 45, sat: -15, con: -10, warm: 10 }],
   ['film', { grain: 30, fade: 20, con: 12, sat: -8, warm: 15, vig: 25, highlights: -10 }],
   ['golden', { warm: 50, sat: 15, bri: 8, glow: 25, highlights: 10 }],
@@ -230,6 +245,8 @@ function counts() {
 function setVals(over = {}) {
   for (const k in DEF) vals[k] = copyVal(over[k] ?? DEF[k]);
   paintAll();
+  // unfold every section this look touched, so the sliders behind it are right there
+  for (const el of Object.values(secEls)) if (el.count.textContent) el.sec.classList.add('open');
   requestRender(false);
 }
 
